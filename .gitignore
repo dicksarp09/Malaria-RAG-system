@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[oc]
+*.egg-info/
+*.egg
+build/
+dist/
+wheels/
+.venv/
+venv/
+.env
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.next/
+out/
+.vercel/
+.netlify/
+
+# Data & Logs
+data/qdrant_storage/*.lock
+backend/backend.log
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Misc
+nul
