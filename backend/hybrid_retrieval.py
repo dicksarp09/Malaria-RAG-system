@@ -14,9 +14,7 @@ def get_db_path():
 
 
 def get_qdrant_client():
-    client = QdrantClient(
-        path=str(Path(__file__).parent.parent / "data" / "qdrant_storage")
-    )
+    client = QdrantClient(path=str(Path(__file__).parent.parent / "data" / "qdrant_collection"))
     return client
 
 
@@ -123,9 +121,7 @@ class HybridRetriever:
         conditions = []
 
         if country:
-            conditions.append(
-                FieldCondition(key="country", match=MatchValue(value=country))
-            )
+            conditions.append(FieldCondition(key="country", match=MatchValue(value=country)))
 
         return Filter(must=conditions) if conditions else None
 
@@ -190,9 +186,7 @@ class HybridRetriever:
             if not semantic_results:
                 if log_retrieval:
                     filter_info = f"country={country}" if country else "none"
-                    message = (
-                        f'Query: "{query[:100]}...", Filters: {filter_info}, Results: 0'
-                    )
+                    message = f'Query: "{query[:100]}...", Filters: {filter_info}, Results: 0'
                     log_event(conn, None, "WARNING", message)
                 conn.close()
                 return []

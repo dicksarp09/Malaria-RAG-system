@@ -18,8 +18,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application
 COPY . .
 
+# Copy scripts from parent directory
+COPY ../scripts/ /app/scripts/
+
+# Create data directories
+RUN mkdir -p /app/data/metadata /app/data/qdrant_collection
+
 # Expose port
 EXPOSE 8000
 
-# Run application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run initialization and start application
+CMD ["sh", "-c", "python init_storage.py && uvicorn main:app --host 0.0.0.0 --port 8000"]
