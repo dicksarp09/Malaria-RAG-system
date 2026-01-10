@@ -10,6 +10,7 @@ The system uses a graph-based orchestration to manage the complete RAG workflow,
 - **Backend (FastAPI)**: RESTful API that integrates core RAG scripts and provides evaluation metrics.
 - **Vector Store (Qdrant)**: High-performance vector database for semantic search.
 - **Metadata Store (SQLite)**: Core audit trail and document metadata management.
+- **Monitoring Stack**: Prometheus for metrics collection and Grafana for visualization.
 - **Orchestration**: Graph-based pipeline managing ingestion and query flows.
 
 ## 🧬 Core Pipelines
@@ -67,10 +68,72 @@ The ingestion pipeline ensures that only high-quality, relevant documents are ad
    ```
 3. **Run Dev Server**:
    ```bash
-   npm run dev
+    npm run dev
+    ```
+
+### Docker Setup (Recommended)
+
+The easiest way to run the entire system with monitoring:
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/dicksarp09/Malaria-RAG-system.git
+   cd Malaria-RAG-system
+   ```
+
+2. **Set up environment**:
+   ```bash
+   cp backend/.env.example backend/.env
+   ```
+   Edit `backend/.env` and add your Groq API key:
+   ```
+   GROQ_API_KEY=your_groq_api_key_here
+   ```
+
+3. **Start all services**:
+   ```bash
+   docker-compose up -d
+   ```
+
+   This will start:
+   - Backend API: `http://localhost:8000`
+   - Frontend: `http://localhost:3000`
+   - Prometheus: `http://localhost:9090`
+   - Grafana: `http://localhost:3000` (admin/admin)
+
+4. **Initialize the database** (first time only):
+   ```bash
+   docker-compose exec backend python scripts/create_db.py
+   ```
+
+5. **View metrics**:
+   - Prometheus UI: http://localhost:9090
+   - Grafana Dashboard: http://localhost:3000 (Login: admin/admin)
+   - Backend metrics: http://localhost:8000/metrics
+
+6. **Stop services**:
+   ```bash
+   docker-compose down
    ```
 
 ## 📊 Monitoring & Evaluation
+
+### Application Metrics (Prometheus + Grafana)
+
+The system exposes Prometheus metrics at `/metrics` endpoint:
+
+- **Query Metrics**:
+  - `rag_queries_total` - Total number of queries (labeled by country and status)
+  - `rag_query_duration_seconds` - Query duration histogram
+  - `rag_retrieved_chunks` - Number of chunks retrieved per query
+  - `rag_llm_latency_seconds` - LLM response latency histogram
+
+- **Dashboards**:
+  - Pre-configured Grafana dashboard at `/var/lib/grafana/dashboards/rag-dashboard.json`
+  - Includes query rate, latency percentiles, and retrieval statistics
+  - Auto-refreshes every 5 seconds
+
+### Observability
 
 - **LangSmith Tracing**: Full observability of query latency, retrieval quality, and LLM behavior.
 - **Evaluation Dashboard**: Accessible via `GET /evaluation/metrics`, providing refusal rates and average chunks per query.
@@ -88,7 +151,14 @@ malaria-rag/
 │   ├── src/components/   # Sidebar, InputBar, EvidenceBlock
 │   └── src/app/          # Stream architecture
 ├── data/                 # SQLite metadata and Qdrant local storage
-└── OPTIMIZATION.md       # Roadmap for performance & cost tuning
+├── prometheus/           # Prometheus configuration
+│   └── prometheus.yml    # Scrape configuration
+├── grafana/              # Grafana configuration
+│   ├── provisioning/     # Datasources and dashboard provisioning
+│   └── dashboards/       # Pre-configured dashboards
+├── docker-compose.yml    # Docker orchestration
+├── OPTIMIZATION.md       # Roadmap for performance & cost tuning
+└── README.md             # This file
 ```
 
 ## 📜 License

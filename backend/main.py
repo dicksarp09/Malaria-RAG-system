@@ -1,13 +1,15 @@
-import sys
-from pathlib import Path
 import sqlite3
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional, List
-from groq import Groq
-from dotenv import load_dotenv
+import sys
 import time
+from pathlib import Path
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from groq import Groq
+from prometheus_client import Counter, Gauge, Histogram
+from prometheus_fastapi_instrumentator import Instrumentator
+from pydantic import BaseModel
 
 load_dotenv()
 
@@ -15,7 +17,8 @@ load_dotenv()
 LANGSMITH_ENABLED = False
 try:
     sys.path.append(str(Path(__file__).parent.parent / "scripts"))
-    from simple_langsmith_v3 import log_query, LANGSMITH_ENABLED as langsmith_ok
+    from simple_langsmith_v3 import LANGSMITH_ENABLED as langsmith_ok
+    from simple_langsmith_v3 import log_query
 
     LANGSMITH_ENABLED = langsmith_ok
 except Exception as e:
@@ -36,12 +39,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+
 DB_PATH = Path(__file__).parent.parent / "data" / "metadata" / "documents.db"
+
+query_counter = Counter("rag_queries_total", "Total number of RAG queries", ["country", "status"])
+
+query_duration = Histogram(
+    "rag_query_duration_seconds", "RAG query duration in seconds", ["country"]
+)
+
+retrieved_chunks_gauge = Gauge("rag_retrieved_chunks", "Number of chunks retrieved in last query")
+
+llm_latency_histogram = Histogram("rag_llm_latency_seconds", "LLM response latency in seconds")
 
 
 class QueryRequest(BaseModel):
     user_query: str
-    country: Optional[str] = None
+    country: str | None = None
     top_k: int = 10
 
 
@@ -54,14 +69,14 @@ class ChunkMetadata(BaseModel):
     final_score: float
     semantic_score: float
     bm25_score: float
-    country: Optional[str] = None
+    country: str | None = None
 
 
 class QueryResponse(BaseModel):
     query: str
     answer: str
-    retrieved_chunks: List[ChunkMetadata]
-    top_chunk_ids: List[str]
+    retrieved_chunks: list[ChunkMetadata]
+    top_chunk_ids: list[str]
     chunks_retrieved: int
     is_insufficient_evidence: bool
 
@@ -86,20 +101,22 @@ async def query_rag(request: QueryRequest):
     """Execute RAG query with filters."""
 
     if not request.user_query or len(request.user_query.strip()) < 3:
-        raise HTTPException(
-            status_code=400, detail="Query must be at least 3 characters"
-        )
+        raise HTTPException(status_code=400, detail="Query must be at least 3 characters")
+
+    query_start = time.time()
+    country = request.country or "unknown"
 
     try:
         sys.path.append(str(Path(__file__).parent))
 
         from hybrid_retrieval import HybridRetriever
-        from llm_rag_query import rag_query
 
         retriever = HybridRetriever()
         chunks = retriever.retrieve(
             query=request.user_query, country=request.country, K=request.top_k
         )
+
+        retrieved_chunks_gauge.set(len(chunks))
 
         context_parts = []
         chunk_texts = {}
@@ -146,6 +163,8 @@ async def query_rag(request: QueryRequest):
         )
         answer = completion.choices[0].message.content
         llm_latency_ms = (time.time() - llm_start) * 1000
+        llm_latency_seconds = llm_latency_ms / 1000
+        llm_latency_histogram.observe(llm_latency_seconds)
 
         is_insufficient = answer and "INSUFFICIENT EVIDENCE" in answer.upper()
 
@@ -179,6 +198,9 @@ async def query_rag(request: QueryRequest):
                 answer=answer or "",
             )
 
+        query_duration.observe(time.time() - query_start, labels={"country": country})
+        query_counter.labels(country=country, status="success").inc()
+
         return QueryResponse(
             query=request.user_query,
             answer=answer or "",
@@ -189,7 +211,8 @@ async def query_rag(request: QueryRequest):
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
+        query_counter.labels(country=country, status="error").inc()
+        raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}") from None
 
 
 if __name__ == "__main__":
