@@ -1,8 +1,11 @@
 # Malaria RAG System - Backend + Frontend
 
+
+
 A production-ready RAG system for querying malaria research papers from Ghana and Nigeria. This system is designed for clinical precision, evidence-backed synthesis, and strict adherence to provided source material.
 
 ## 🏗️ Architecture
+![WhatsApp Image 2026-01-12 at 4 00 28 PM](https://github.com/user-attachments/assets/9cb03154-da6b-490a-bcf5-f09d4ae95961)
 
 The system uses a graph-based orchestration to manage the complete RAG workflow, ensuring modularity and idempotency.
 
